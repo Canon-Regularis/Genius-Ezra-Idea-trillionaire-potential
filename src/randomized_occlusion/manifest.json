@@ -1,0 +1,7 @@
+{
+  "package": "randomized_occlusion",
+  "name": "Randomized Image Occlusion",
+  "min_point_version": 231000,
+  "homepage": "",
+  "conflicts": []
+}

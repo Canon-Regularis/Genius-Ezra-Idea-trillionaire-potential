@@ -1,0 +1,11 @@
+{
+  "deck": "Default",
+  "min_arrow_fraction": 0.22,
+  "show_target_dot": true,
+  "prompt_text": "?",
+  "max_placement_attempts": 48,
+  "accent_color": "#e53935",
+  "box_fill": "#ffffff",
+  "box_text_color": "#202124",
+  "target_dot_color": "#e53935"
+}

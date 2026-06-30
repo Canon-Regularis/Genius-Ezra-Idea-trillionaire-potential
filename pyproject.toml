@@ -1,0 +1,30 @@
+[project]
+name = "randomized-image-occlusion"
+version = "1.0.0"
+description = "Anki add-on: image occlusion that randomises label placement each review."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+
+# This project is distributed as an Anki add-on (.ankiaddon), not a PyPI wheel.
+# The dependencies below are only needed for development/testing.
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4", "mypy>=1.8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src"]
+ignore_missing_imports = true   # aqt/anki are not installed in CI
+check_untyped_defs = true

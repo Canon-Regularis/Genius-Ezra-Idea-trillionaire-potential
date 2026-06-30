@@ -1,0 +1,57 @@
+"""Declarative description of the add-on's note type.
+
+This is *data only* — it says what the note type looks like, not how to install
+it (that is :class:`~randomized_occlusion.notetype.installer.NoteTypeInstaller`)
+nor how to render it (that is the :mod:`templates` assembler). Splitting the
+"what" from the "how" keeps each piece independently testable.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True)
+class NoteTypeSpec:
+    """Field layout and identity of the note type."""
+
+    name: str
+    fields: tuple[str, ...]
+    cloze_field: str
+    image_field: str
+    structures_field: str
+    header_field: str
+    back_extra_field: str
+    sort_field: str
+    template_name: str
+
+    @property
+    def is_cloze(self) -> bool:
+        return True
+
+    @property
+    def sort_index(self) -> int:
+        return self.fields.index(self.sort_field)
+
+
+#: The single canonical specification used throughout the add-on.
+#:
+#: Field roles:
+#:   * ``Image``       — the picture, stored as a full ``<img src=...>`` tag so
+#:                       Anki's media check keeps the file.
+#:   * ``Structures``  — base64-encoded JSON of every structure on the image.
+#:   * ``Ordinals``    — hidden cloze field (``{{c1::1}}...{{cN::N}}``) that
+#:                       drives one-card-per-structure generation.
+#:   * ``Header``      — optional title shown above the image.
+#:   * ``Back Extra``  — optional notes revealed on the answer side.
+DEFAULT_SPEC = NoteTypeSpec(
+    name="Randomized Image Occlusion",
+    fields=("Image", "Structures", "Ordinals", "Header", "Back Extra"),
+    cloze_field="Ordinals",
+    image_field="Image",
+    structures_field="Structures",
+    header_field="Header",
+    back_extra_field="Back Extra",
+    sort_field="Header",
+    template_name="Randomized Occlusion",
+)

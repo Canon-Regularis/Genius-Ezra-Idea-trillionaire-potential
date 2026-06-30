@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Build output
+dist/
+
+# Anki-generated, per-install add-on state (must never be committed/shipped)
+meta.json
+src/randomized_occlusion/user_files/*
+!src/randomized_occlusion/user_files/.gitkeep
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
