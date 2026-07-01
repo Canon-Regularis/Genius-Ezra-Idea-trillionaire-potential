@@ -1,7 +1,8 @@
 {
   "package": "randomized_occlusion",
   "name": "Randomized Image Occlusion",
+  "human_version": "1.1.0",
   "min_point_version": 231000,
-  "homepage": "",
+  "homepage": "https://github.com/Canon-Regularis/Genius-Ezra-Idea-trillionaire-potential",
   "conflicts": []
 }

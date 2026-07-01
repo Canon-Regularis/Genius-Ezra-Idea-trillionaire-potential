@@ -47,7 +47,10 @@
   overflow: hidden;
 }
 
-.ed-img { max-width: 100%; max-height: 70vh; display: block; cursor: crosshair; }
+.ed-img {
+  max-width: 100%; max-height: 70vh; display: block; cursor: crosshair;
+  user-select: none; -webkit-user-drag: none;
+}
 
 .ed-overlay {
   position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none;
@@ -57,8 +60,19 @@
   color: var(--ed-muted); padding: 24px; text-align: center; max-width: 320px; line-height: 1.5;
 }
 
-.ed-marker-dot { fill: var(--ed-accent, #e53935); stroke: #ffffff; stroke-width: 2; }
-.ed-marker-label { fill: #ffffff; font-size: 12px; font-weight: 700; font-family: inherit; }
+/* The overlay is pointer-transparent so bare-image clicks add markers; each
+   marker group re-enables events on a transparent hit circle so it can be
+   grabbed and dragged. The visible dot/label never intercept, so the whole
+   grab area is the (larger) hit circle. */
+.ed-marker-hit { fill: transparent; pointer-events: all; cursor: grab; }
+.ed-marker.ed-marker-dragging .ed-marker-hit { cursor: grabbing; }
+.ed-marker-dot {
+  fill: var(--ed-accent, #e53935); stroke: #ffffff; stroke-width: 2; pointer-events: none;
+}
+.ed-marker-dragging .ed-marker-dot { stroke-width: 3; }
+.ed-marker-label {
+  fill: #ffffff; font-size: 12px; font-weight: 700; font-family: inherit; pointer-events: none;
+}
 
 .ed-panel {
   flex: 0 0 250px; display: flex; flex-direction: column; gap: 10px; overflow: hidden;
