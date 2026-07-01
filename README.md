@@ -95,14 +95,6 @@ Then just review like any other Anki cards. Each time, the prompt box lands
 somewhere new with an arrow to the structure - so you're always answering *"what
 is this?"*, never *"what usually goes in this corner?"*.
 
-### Straight from Anki's Add window
-
-You can also make occlusion cards without the Tools menu: open **Add**, choose
-the **Randomized Image Occlusion** note type, and the marking canvas opens
-automatically - no fiddling with raw fields. (There's also an **Occlusion**
-button in the Add toolbar to reopen it.) Mark up the image, click **Save**, then
-press Anki's **Add** as usual.
-
 ### Editing a card later
 
 Made a typo, or want to nudge a marker? Open the **Browse** window, right-click
@@ -133,11 +125,16 @@ editor and menu shells need Anki to run.
 
 ```sh
 pip install -e ".[dev]"
-pytest            # run the tests
-ruff check .      # lint
-mypy              # type-check
-python build.py   # writes dist/randomized_occlusion.ankiaddon
+pytest                       # Python tests (domain, config, note pipeline, fuzz)
+node --test tests/js/*.test.js   # headless tests for the reviewer JS
+ruff check .                 # lint
+mypy                         # type-check
+python build.py              # writes dist/randomized_occlusion.ankiaddon
 ```
+
+The Python suite includes randomized property/fuzz tests (`test_fuzz.py`) that
+hammer the note round-trip and payload invariants, and the JS suite runs the
+reviewer's placement/RNG logic headlessly (Node's built-in runner, no deps).
 
 ## License
 

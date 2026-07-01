@@ -23,14 +23,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - The marking dialog's persistence is now a small strategy (add / edit /
   Add-window staging), so the same canvas UI drives every flow.
-
-### Changed
 - The Save flow now freezes the image controls while it reads the markers, so a
   card can never be saved with markers that belong to a different image.
 
 ### Fixed
 - The editor dialog is now released when closed, so repeatedly editing notes no
   longer leaves hidden dialogs in memory for the session.
+- Adding or editing a note can no longer corrupt Anki's undo queue when the
+  chosen image or the note becomes unavailable mid-save: the image import and
+  note load now happen before the undo step is opened.
+- On a small image with a large minimum arrow, the prompt box could land almost
+  on top of the structure (an invisible arrow); placement now falls back to the
+  farthest valid point so the arrow always stays visible.
+- A non-finite value in `config.json` (e.g. `Infinity`) no longer crashes config
+  loading — it falls back to the default.
 
 ## [1.0.0]
 
