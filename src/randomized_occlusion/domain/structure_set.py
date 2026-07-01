@@ -83,6 +83,13 @@ class StructureSet:
 
     @classmethod
     def from_json(cls, payload: str) -> StructureSet:
+        """Deserialize a payload produced by :meth:`to_json`.
+
+        Ordinals must already be contiguous ``1..N``. Unlike
+        :meth:`from_unordered`, this does *not* renumber: ordinals map to Anki
+        cloze card ordinals, so a corrupt/hand-edited payload with gaps should
+        surface as an error rather than be silently (and wrongly) renumbered.
+        """
         data = json.loads(payload)
         return cls(structures=tuple(Structure.from_dict(item) for item in data))
 

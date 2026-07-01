@@ -47,6 +47,14 @@ def test_render_js_closing_tag_is_escaped():
     assert front.count("</script>") == 3
 
 
+def test_config_script_breakout_is_neutralised():
+    rc = RenderConfig.from_mapping({**DEFAULT_CONFIG, "prompt_text": "</script><b>x"})
+    front = _assembler().front(rc)
+    # The user-controlled prompt_text must not be able to close the config script.
+    assert '"promptText":"</script>' not in front
+    assert '"promptText":"<\\/script>' in front
+
+
 def test_css_embeds_fingerprint_and_variables():
     css = _assembler().css(RC)
     assert extract_fingerprint(css) == _assembler().fingerprint(RC)

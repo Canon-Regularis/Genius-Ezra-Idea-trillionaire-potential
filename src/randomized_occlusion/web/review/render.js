@@ -149,45 +149,48 @@
     return Math.max(lo, Math.min(hi, value));
   }
 
-  /** True if point (px, py) lies inside the axis-aligned box. */
-  function pointInBox(px, py, box) {
-    return px >= box.x && px <= box.x + box.w && py >= box.y && py <= box.y + box.h;
-  }
-
   /**
-   * Choose a randomised, in-bounds position for the prompt box such that:
-   *   - the whole box stays inside the stage,
-   *   - the target point is not covered by the box,
-   *   - the arrow (box-centre -> target) is at least `minLen` long.
-   * Falls back to the in-bounds position furthest from the target.
+   * Choose a randomised box CENTRE for this review.
+   *
+   * Deliberately independent of the box's text/size: the front shows "?" and
+   * the back shows the (wider) label, so if placement depended on box width the
+   * same seed could accept a different position on each side and the box would
+   * jump on flip. Computing a size-independent centre means both sides derive
+   * the IDENTICAL point and the box simply grows symmetrically around it.
+   *
+   * Centres are kept within a margin of the stage (a fraction of its size, so
+   * this too is resolution-independent) to keep typical boxes on-image, and the
+   * arrow (centre -> target) is at least `minLen` long. Never returns null.
    */
-  function placeBox(rng, stage, target, boxSize, cfg) {
+  function placeCenter(rng, stage, target, cfg) {
     var diag = Math.hypot(stage.w, stage.h);
     var minLen = cfg.minArrowFraction * diag;
     var maxLen = Math.max(minLen + 1, 0.6 * diag);
-    var halfW = boxSize.w / 2;
-    var halfH = boxSize.h / 2;
+    var marginX = stage.w * 0.14;
+    var marginY = stage.h * 0.1;
 
     var best = null;
     var bestLen = -1;
-
     for (var i = 0; i < cfg.maxPlacementAttempts; i++) {
       var angle = rng() * Math.PI * 2;
       var length = minLen + rng() * (maxLen - minLen);
-      var cx = clamp(target.x + Math.cos(angle) * length, halfW, stage.w - halfW);
-      var cy = clamp(target.y + Math.sin(angle) * length, halfH, stage.h - halfH);
-      var box = { x: cx - halfW, y: cy - halfH, w: boxSize.w, h: boxSize.h };
+      var cx = clamp(target.x + Math.cos(angle) * length, marginX, stage.w - marginX);
+      var cy = clamp(target.y + Math.sin(angle) * length, marginY, stage.h - marginY);
       var actualLen = Math.hypot(cx - target.x, cy - target.y);
-
-      if (!pointInBox(target.x, target.y, box) && actualLen >= minLen * 0.8) {
-        return box;
+      if (actualLen >= minLen * 0.8) {
+        return { x: cx, y: cy };
       }
       if (actualLen > bestLen) {
         bestLen = actualLen;
-        best = box;
+        best = { x: cx, y: cy };
       }
     }
-    return best;
+    return (
+      best || {
+        x: clamp(target.x + minLen, marginX, stage.w - marginX),
+        y: clamp(target.y, marginY, stage.h - marginY),
+      }
+    );
   }
 
   /**
@@ -279,7 +282,13 @@
     };
 
     var rng = svg.__roRng;
-    var box = placeBox(rng, stage, target, boxSize, cfg);
+    var center = placeCenter(rng, stage, target, cfg);
+    var box = {
+      x: center.x - boxSize.w / 2,
+      y: center.y - boxSize.h / 2,
+      w: boxSize.w,
+      h: boxSize.h,
+    };
 
     rect.setAttribute("x", box.x);
     rect.setAttribute("y", box.y);
@@ -310,14 +319,17 @@
 
   // ---- orchestration --------------------------------------------------------
 
-  function render() {
+  function render(mint) {
     var stageEl = document.getElementById("ro-stage");
     var img = getImage();
     var svg = document.getElementById("ro-overlay");
     if (!stageEl || !img || !svg) return;
 
-    var width = img.clientWidth;
-    var height = img.clientHeight;
+    // getBoundingClientRect gives the true fractional displayed size, so the
+    // overlay's user space tracks the image exactly (no ~1px rounding drift).
+    var rect = img.getBoundingClientRect();
+    var width = rect.width;
+    var height = rect.height;
     if (!width || !height) return; // image not laid out yet; a later pass will retry
 
     var structures = readStructures();
@@ -336,16 +348,24 @@
     }
     if (!structure) structure = structures[0];
 
-    // Seed: the front mints a fresh seed each review and stores it; the back
-    // (including the front script re-run via {{FrontSide}}) reads it back, so
-    // both sides compute an identical layout.
+    // Seed lifecycle (this is what keeps front and back identical while still
+    // randomising every review):
+    //   - a fresh question view (mint=true, front) mints and stores a new seed;
+    //   - the answer side (back) and any re-layout (resize, mint=false) reuse
+    //     the stored seed, so they reproduce the exact same layout.
+    // Minting only on a genuine new question view — not on every render — is
+    // what stops the box jumping on resize or on a double initial render.
     var seed;
     if (back) {
       var stored = readSeed();
       seed = stored !== null ? parseInt(stored, 10) >>> 0 : hashString("" + activeOrdinal + structures.length);
-    } else {
+    } else if (mint) {
       seed = (Math.floor(Math.random() * 0xffffffff)) >>> 0;
       writeSeed(seed);
+    } else {
+      var reused = readSeed();
+      seed = reused !== null ? parseInt(reused, 10) >>> 0 : (Math.floor(Math.random() * 0xffffffff)) >>> 0;
+      if (reused === null) writeSeed(seed);
     }
 
     // Match the SVG's user-space to the image's displayed pixel size.
@@ -369,10 +389,18 @@
       return;
     }
 
+    // Several triggers below (load / error / safety-net timer) may all fire;
+    // this guard ensures the initial render for this show happens exactly once.
+    // Without it, a second pass would re-mint the seed and the box would jump.
+    var ran = false;
     function go() {
+      if (ran) return;
+      ran = true;
       // setTimeout(0) guarantees we run after the full card HTML is in the DOM
       // (so the back-side sentinel #ro-answer is reliably detectable).
-      window.setTimeout(render, 0);
+      window.setTimeout(function () {
+        render(true);
+      }, 0);
     }
 
     if (img.complete && img.naturalWidth) {
@@ -380,14 +408,19 @@
     } else {
       img.addEventListener("load", go, { once: true });
       img.addEventListener("error", go, { once: true });
-      // Safety net in case neither event fires (cached/odd clients).
+      // Safety net in case neither event fires (cached/odd clients). The `ran`
+      // guard makes this a no-op once load/error has already rendered.
       window.setTimeout(go, 250);
     }
 
     if (!window.__roResizeBound) {
       window.__roResizeBound = true;
+      // A resize is a re-layout of the SAME review, not a new one: re-render
+      // with the stored seed (mint=false) so the layout stays identical.
       window.addEventListener("resize", function () {
-        window.setTimeout(render, 0);
+        window.setTimeout(function () {
+          render(false);
+        }, 0);
       });
     }
   }

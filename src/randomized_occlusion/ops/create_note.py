@@ -47,12 +47,16 @@ def add_randomized_occlusion_note(
     """Run the note-creation ``CollectionOp`` in the background."""
 
     def op(col: Any) -> Any:
-        undo_position = col.add_custom_undo_entry(_UNDO_NAME)
-
+        # Ensure the note type exists/updated BEFORE opening the undo entry.
+        # add_dict/update_dict perform a schema change that clears Anki's undo
+        # queue; doing it inside the entry would invalidate the "Add note" undo
+        # step. In normal use this is a no-op — bootstrap installs the note type
+        # at profile open, so nothing here changes the schema.
         assembler = TemplateAssembler(spec, read_web("review/render.js"))
         installer = NoteTypeInstaller(AnkiModelGateway(col), assembler, spec)
         installer.ensure_installed(render_config)
 
+        undo_position = col.add_custom_undo_entry(_UNDO_NAME)
         filename = AnkiMediaGateway(col).add_image(request.image_path)
         content = NoteFactory(spec).build(
             image_filename=filename,

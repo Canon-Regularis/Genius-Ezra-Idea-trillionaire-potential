@@ -27,12 +27,21 @@ def extract_fingerprint(css: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _script_safe(text: str) -> str:
+    """Neutralise any ``</`` so embedded text can't terminate a ``<script>``.
+
+    ``<\\/`` is equivalent to ``</`` both inside a JSON string (``\\/`` is a valid
+    JSON escape for ``/``) and inside our JavaScript, so this is safe for every
+    payload we embed in a ``<script>`` element — the renderer JS and the config
+    JSON alike (the latter carries user-editable values such as ``prompt_text``).
+    """
+    return text.replace("</", "<\\/")
+
+
 class TemplateAssembler:
     def __init__(self, spec: NoteTypeSpec, render_js: str) -> None:
         self._spec = spec
-        # Guard against a future edit to render.js accidentally embedding a
-        # literal "</script>" that would terminate the template's script tag.
-        self._render_js = render_js.replace("</script", "<\\/script")
+        self._render_js = _script_safe(render_js)
 
     # -- public API ------------------------------------------------------------
 
@@ -57,7 +66,7 @@ class TemplateAssembler:
             image=s.image_field,
             cloze=s.cloze_field,
             structures=s.structures_field,
-            config=render_config.behaviour_json(),
+            config=_script_safe(render_config.behaviour_json()),
             render_js=self._render_js,
         )
 
@@ -73,13 +82,15 @@ class TemplateAssembler:
 
     def css(self, render_config: RenderConfig) -> str:
         fingerprint = self.fingerprint(render_config)
+        return f"/* ro-fingerprint:{fingerprint} */\n" + self._css_body(render_config)
+
+    def _css_body(self, render_config: RenderConfig) -> str:
         variables = "".join(
             f"  {name}: {value};\n"
             for name, value in render_config.css_variables().items()
         )
         return dedent(
             """\
-            /* ro-fingerprint:{fingerprint} */
             .card {{
               font-family: arial, sans-serif;
               font-size: 18px;
@@ -111,22 +122,23 @@ class TemplateAssembler:
             .ro-dot {{ fill: var(--ro-dot); stroke: #ffffff; stroke-width: 1.5; }}
             .ro-extra {{ margin-top: 14px; line-height: normal; font-size: 16px; }}
             """
-        ).format(fingerprint=fingerprint, variables=variables)
+        ).format(variables=variables)
 
     def fingerprint(self, render_config: RenderConfig) -> str:
         """A short hash over everything that affects the rendered card.
 
-        Embedded in the CSS so the installer can cheaply detect when an already
-        installed note type is out of date and needs its templates refreshed.
+        Hashes the *actual* assembled front, back, and CSS body (which already
+        embed the renderer JS, the config, and the colour variables), so any
+        change — including to the HTML/CSS skeleton — is detected automatically
+        and the installer refreshes already-installed note types. The CSS body
+        is hashed *without* its own fingerprint comment to avoid self-reference.
         """
-        payload = " ".join(
+        payload = "\n".join(
             [
                 str(TEMPLATE_VERSION),
-                self._spec.name,
-                ",".join(self._spec.fields),
-                self._spec.cloze_field,
-                self._render_js,
-                render_config.fingerprint_payload(),
+                self.front(render_config),
+                self.back(),
+                self._css_body(render_config),
             ]
         )
         return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
