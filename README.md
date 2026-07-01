@@ -85,7 +85,8 @@ Either way, you'll now see **Tools → Randomized Image Occlusion…** in the me
 1. Go to **Tools → Randomized Image Occlusion…**.
 2. Click **Load image…** and choose your diagram.
 3. Click each structure on the image to drop a numbered marker, and type its
-   label. Repeat for every part you want to learn.
+   label. Repeat for every part you want to learn. (Drag a marker to reposition
+   it; click the × in the list to remove one.)
 4. *(Optional)* Add a header, some back-of-card notes, pick a deck, and choose any
    of the study modes above.
 5. Click **Save**. Your cards are added to the deck.
@@ -93,6 +94,14 @@ Either way, you'll now see **Tools → Randomized Image Occlusion…** in the me
 Then just review like any other Anki cards. Each time, the prompt box lands
 somewhere new with an arrow to the structure - so you're always answering *"what
 is this?"*, never *"what usually goes in this corner?"*.
+
+### Straight from Anki's Add window
+
+You can also make occlusion cards without the Tools menu: open **Add**, choose
+the **Randomized Image Occlusion** note type, and the marking canvas opens
+automatically - no fiddling with raw fields. (There's also an **Occlusion**
+button in the Add toolbar to reopen it.) Mark up the image, click **Save**, then
+press Anki's **Add** as usual.
 
 ### Editing a card later
 

@@ -10,6 +10,7 @@ from aqt.utils import showInfo, showWarning
 
 from ..config.config_service import ConfigService
 from .dialog import MarkerDialog
+from .savers import CreateNoteSaver
 
 
 class EditorLauncher:
@@ -25,7 +26,9 @@ class EditorLauncher:
             showInfo("Please open a collection first.")
             return
         try:
-            dialog = MarkerDialog(self._mw, self._config)
+            dialog = MarkerDialog(
+                self._mw, self._config, saver=CreateNoteSaver(self._config)
+            )
         except Exception:
             # Surface the failure instead of silently doing nothing.
             showWarning(

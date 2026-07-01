@@ -8,12 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0]
 
 ### Added
+- **Make occlusion cards from Anki's Add window.** Choosing the Randomized Image
+  Occlusion note type in **Add** now opens the marking canvas automatically
+  (with an **Occlusion** toolbar button to reopen it), so occlusion cards are
+  made visually instead of by editing raw fields. Save stages the fields and
+  Anki's **Add** button creates the card.
 - **Edit existing cards.** Right-click a Randomized Occlusion note in the Browser
   and choose **Edit with Randomized Image Occlusion** to reopen it in the marking
   dialog with its image, markers, and options restored. Save updates the note
   (adding or removing cards if the marker count changed) in a single undo step.
 - **Drag to reposition markers.** In the editor, drag any marker to move it
   instead of deleting and re-adding it.
+
+### Changed
+- The marking dialog's persistence is now a small strategy (add / edit /
+  Add-window staging), so the same canvas UI drives every flow.
 
 ### Changed
 - The Save flow now freezes the image controls while it reads the markers, so a

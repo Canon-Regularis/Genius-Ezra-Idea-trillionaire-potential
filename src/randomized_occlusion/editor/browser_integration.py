@@ -19,7 +19,8 @@ from aqt.utils import showWarning
 from ..collection.note_reader import NoteReader
 from ..config.config_service import ConfigService
 from ..notetype.spec import DEFAULT_SPEC, NoteTypeSpec
-from .dialog import EditContext, MarkerDialog
+from .dialog import MarkerDialog
+from .savers import UpdateNoteSaver
 
 __all__ = ["BrowserEditIntegration"]
 
@@ -92,7 +93,8 @@ class BrowserEditIntegration:
         dialog = MarkerDialog(
             self._mw,
             self._config,
-            edit=EditContext(note_id=int(note_id), loaded=loaded),
+            saver=UpdateNoteSaver(self._config, int(note_id), self._spec),
+            prefill=loaded,
         )
         self._dialog = dialog
         # Drop the strong reference once closed; the dialog deletes itself on

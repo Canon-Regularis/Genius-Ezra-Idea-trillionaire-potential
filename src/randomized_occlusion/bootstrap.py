@@ -14,24 +14,25 @@ from aqt.qt import QAction, qconnect
 
 from .config.config_service import AnkiConfigProvider, ConfigService
 from .editor.browser_integration import BrowserEditIntegration
+from .editor.editor_integration import EditorIntegration
 from .editor.launcher import EditorLauncher
 from .notetype.factory import build_installer
 
 _MENU_LABEL = "Randomized Image Occlusion…"
 
 # Strong references kept for the lifetime of the process. Without these the
-# EditorLauncher / BrowserEditIntegration (locals in setup()) would be
-# garbage-collected after setup() returns; PyQt does not keep its own strong
-# reference to a connected bound method's receiver, so the menu item would
-# silently do nothing when clicked.
+# integrations (locals in setup()) would be garbage-collected after setup()
+# returns; PyQt does not keep its own strong reference to a connected bound
+# method's receiver, so the menu item would silently do nothing when clicked.
 _launcher: EditorLauncher | None = None
 _browser_integration: BrowserEditIntegration | None = None
+_editor_integration: EditorIntegration | None = None
 _action: Any = None
 
 
 def setup(addon_module: str) -> None:
     """Entry point invoked once from ``__init__`` when running inside Anki."""
-    global _launcher, _browser_integration, _action
+    global _launcher, _browser_integration, _editor_integration, _action
 
     config_service = ConfigService(
         AnkiConfigProvider(mw.addonManager, addon_module)
@@ -45,6 +46,10 @@ def setup(addon_module: str) -> None:
     # Add the "edit existing note" entry point to the Browser context menu.
     _browser_integration = BrowserEditIntegration(mw, config_service)
     _browser_integration.register()
+
+    # Make Anki's Add window use the marking canvas for our note type.
+    _editor_integration = EditorIntegration(mw, config_service)
+    _editor_integration.register()
 
     # Install the note type on every profile open, and also right now if a
     # profile is already open — add-ons can load *after* the initial

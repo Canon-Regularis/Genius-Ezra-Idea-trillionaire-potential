@@ -1,16 +1,16 @@
 """The image-marking editor dialog.
 
 Hosts the marking canvas in an :class:`AnkiWebView`, collects native inputs
-(header, extra, deck, card options), and hands a fully-formed request to the
-note op. The one dialog drives both flows:
+(header, extra, deck, card options), and hands a validated :class:`MarkupResult`
+to a :class:`NoteSaver`. The dialog knows nothing about *how* the note is stored:
 
-* **create** — start from a blank canvas and *add* a new note;
-* **edit** — pre-load an existing note (image, markers, options) via an
-  :class:`EditContext` and *update* it in place.
+* creating a new note, editing an existing one, and staging fields into Anki's
+  own Add window are all just different savers;
+* an optional ``prefill`` (a :class:`LoadedNote`) restores an existing note's
+  image, markers, and options onto the canvas.
 
 The dialog stays a thin shell: validation lives in the domain layer, routing in
-:class:`MarkerBridge`, and reading a note back into domain objects in
-:class:`~randomized_occlusion.collection.note_reader.NoteReader`.
+:class:`MarkerBridge`, persistence in the saver.
 """
 
 from __future__ import annotations
@@ -19,7 +19,6 @@ import base64
 import json
 import mimetypes
 import os
-from dataclasses import dataclass
 from typing import Any
 
 from aqt.qt import (
@@ -47,12 +46,11 @@ from ..domain.card_options import CardMode, CardOptions, Direction, Interaction
 from ..domain.geometry import NormalizedPoint
 from ..domain.structure import Structure
 from ..domain.structure_set import StructureSet
-from ..ops.create_note import NoteRequest, add_randomized_occlusion_note
-from ..ops.update_note import UpdateRequest, update_randomized_occlusion_note
 from ..resources import read_web
 from .bridge import MarkerBridge
+from .savers import MarkupResult, NoteSaver
 
-__all__ = ["EditContext", "MarkerDialog"]
+__all__ = ["MarkerDialog"]
 
 _IMAGE_FILTER = "Images (*.png *.jpg *.jpeg *.gif *.webp *.bmp *.svg)"
 
@@ -68,14 +66,6 @@ _CARD_MODE_CHOICES: tuple[tuple[CardMode, str], ...] = (
 )
 
 
-@dataclass(frozen=True, slots=True)
-class EditContext:
-    """Identifies an existing note and the domain state read back from it."""
-
-    note_id: int
-    loaded: LoadedNote
-
-
 def _choice_index(choices: tuple[tuple[Any, str], ...], member: Any) -> int:
     for index, (value, _label) in enumerate(choices):
         if value == member:
@@ -88,41 +78,38 @@ class MarkerDialog(QDialog):
         self,
         main_window: Any,
         config_service: ConfigService,
-        edit: EditContext | None = None,
+        *,
+        saver: NoteSaver,
+        prefill: LoadedNote | None = None,
     ) -> None:
         super().__init__(main_window)
         self._mw = main_window
         self._config = config_service
-        self._edit = edit
-        self._is_edit = edit is not None
-        # A newly chosen file to import (always set when creating; set when
-        # editing only if the user swaps the image). When editing without a swap,
-        # the note keeps `_existing_filename`.
+        self._saver = saver
+        self._prefill = prefill
+        # A newly chosen file to import (set when the user picks/replaces an
+        # image). When a prefilled note's image is unchanged, `_existing_filename`
+        # is reused instead.
         self._new_image_path: str | None = None
         self._existing_filename: str | None = (
-            edit.loaded.image_filename if edit is not None else None
+            prefill.image_filename if prefill is not None else None
         )
         self._deck_combo: QComboBox | None = None
         self._web_ready = False
-        self._marker_count = len(edit.loaded.structures) if edit is not None else 0
-        # An image to show once the webview signals it is ready (the page is not
-        # interactive yet at construction time). (data_url, markers-or-None).
+        self._marker_count = len(prefill.structures) if prefill is not None else 0
+        # An image to show once the webview signals it is ready. (data_url, markers).
         self._pending_display: tuple[str, list[dict[str, Any]] | None] | None = None
         self._bridge = MarkerBridge(
             on_ready=self._on_web_ready, on_count=self._on_count
         )
 
-        self.setWindowTitle(
-            "Edit Randomized Image Occlusion"
-            if self._is_edit
-            else "Randomized Image Occlusion"
-        )
+        self.setWindowTitle(saver.title())
         self.setMinimumSize(720, 520)
         self.resize(960, 680)
         self._build_ui()
         self._load_page()
-        if edit is not None:
-            self._queue_existing_image(edit)
+        if prefill is not None:
+            self._queue_existing_image(prefill)
         qconnect(self.finished, self._on_finished)
 
     # -- construction ----------------------------------------------------------
@@ -131,9 +118,7 @@ class MarkerDialog(QDialog):
         layout = QVBoxLayout(self)
 
         toolbar = QHBoxLayout()
-        self._load_button = QPushButton(
-            "Replace image…" if self._is_edit else "Load image…"
-        )
+        self._load_button = QPushButton(self._saver.load_button_label())
         self._load_button.setToolTip("Choose the image to mark up")
         qconnect(self._load_button.clicked, self._choose_image)
         toolbar.addWidget(self._load_button)
@@ -175,23 +160,23 @@ class MarkerDialog(QDialog):
         self._extra_edit.setMaximumHeight(90)
         form.addRow("Back extra:", self._extra_edit)
 
-        # The deck only matters when creating new cards; editing leaves each
-        # existing card in whatever deck it already lives in, so hide the picker.
-        if not self._is_edit:
+        # The deck only matters when this dialog adds the note itself; editing and
+        # the Add-window staging leave placement to their own flow.
+        if self._saver.wants_deck:
             self._deck_combo = QComboBox()
             self._deck_combo.setToolTip("Deck the new card(s) are added to")
             self._populate_decks()
             form.addRow("Deck:", self._deck_combo)
 
-        if self._edit is not None:
-            self._header_edit.setText(self._edit.loaded.header)
-            self._extra_edit.setPlainText(self._edit.loaded.back_extra)
+        if self._prefill is not None:
+            self._header_edit.setText(self._prefill.header)
+            self._extra_edit.setPlainText(self._prefill.back_extra)
         return form
 
     def _build_options_group(self) -> QGroupBox:
         defaults = (
-            self._edit.loaded.options
-            if self._edit is not None
+            self._prefill.options
+            if self._prefill is not None
             else self._config.editor_defaults()
         )
         group = QGroupBox("Card options")
@@ -280,13 +265,13 @@ class MarkerDialog(QDialog):
 
     # -- image handling --------------------------------------------------------
 
-    def _queue_existing_image(self, edit: EditContext) -> None:
-        """Show the note's current image with its markers once the page is ready.
+    def _queue_existing_image(self, prefill: LoadedNote) -> None:
+        """Show the prefilled note's image with its markers once the page is ready.
 
         A missing media file (e.g. the collection is not fully synced) must not
         block editing: warn, and let the user reload an image and re-mark.
         """
-        filename = edit.loaded.image_filename
+        filename = prefill.image_filename
         path = (
             os.path.join(self._mw.col.media.dir(), filename) if filename else ""
         )
@@ -301,7 +286,7 @@ class MarkerDialog(QDialog):
             return
         markers = [
             {"x": s.target.x, "y": s.target.y, "label": s.label}
-            for s in edit.loaded.structures.ordered
+            for s in prefill.structures.ordered
         ]
         self._display_from_path(path, markers)
 
@@ -411,69 +396,22 @@ class MarkerDialog(QDialog):
             context_labels=self._context_check.isChecked(),
             mode=_CARD_MODE_CHOICES[self._mode_combo.currentIndex()][0],
         )
-        header = self._header_edit.text().strip()
-        back_extra = self._extra_edit.toPlainText().strip()
-
-        if self._edit is not None:
-            self._save_edit(self._edit, structures, options, header, back_extra)
-        else:
-            self._save_new(structures, options, header, back_extra)
-
-    def _save_new(
-        self,
-        structures: StructureSet,
-        options: CardOptions,
-        header: str,
-        back_extra: str,
-    ) -> None:
-        deck_name = (
-            self._deck_combo.currentText() if self._deck_combo is not None else ""
-        ) or "Default"
-        self._config.set_deck(deck_name)
-        request = NoteRequest(
-            image_path=self._new_image_path or "",
+        result = MarkupResult(
             structures=structures,
-            deck_name=deck_name,
             options=options,
-            header=header,
-            back_extra=back_extra,
-        )
-        add_randomized_occlusion_note(
-            parent=self,
-            request=request,
-            render_config=self._config.render_config(),
-            on_success=lambda _changes: self._on_saved(len(structures)),
-        )
-
-    def _save_edit(
-        self,
-        edit: EditContext,
-        structures: StructureSet,
-        options: CardOptions,
-        header: str,
-        back_extra: str,
-    ) -> None:
-        request = UpdateRequest(
-            note_id=edit.note_id,
-            structures=structures,
-            existing_image_filename=self._existing_filename or "",
-            options=options,
+            header=self._header_edit.text().strip(),
+            back_extra=self._extra_edit.toPlainText().strip(),
             new_image_path=self._new_image_path,
-            header=header,
-            back_extra=back_extra,
+            existing_image_filename=self._existing_filename,
+            deck_name=(
+                self._deck_combo.currentText() if self._deck_combo is not None else None
+            ),
         )
-        update_randomized_occlusion_note(
-            parent=self,
-            request=request,
-            render_config=self._config.render_config(),
-            on_success=lambda _changes: self._on_saved(len(structures)),
-        )
+        self._saver.save(self, result)
 
-    def _on_saved(self, card_count: int) -> None:
-        if self._is_edit:
-            tooltip("Card updated.")
-        else:
-            tooltip(f"Added {card_count} card{'s' if card_count != 1 else ''}.")
+    def finish_saved(self, message: str) -> None:
+        """Called by a saver once persistence succeeds: notify and close."""
+        tooltip(message)
         self.accept()
 
     # -- status / lifecycle ----------------------------------------------------
