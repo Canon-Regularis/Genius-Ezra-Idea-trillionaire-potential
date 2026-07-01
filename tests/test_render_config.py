@@ -66,6 +66,14 @@ def test_max_placement_attempts_clamped_to_at_least_one():
     assert RenderConfig.from_mapping({"max_placement_attempts": -5}).max_placement_attempts == 1
 
 
+def test_non_finite_int_config_falls_back_instead_of_crashing():
+    # json.loads accepts Infinity/NaN, so a hand-edited config can smuggle a
+    # non-finite value into an int field; int(inf) raises OverflowError.
+    for bad in [float("inf"), float("-inf"), float("nan")]:
+        rc = RenderConfig.from_mapping({"max_placement_attempts": bad})
+        assert rc.max_placement_attempts == DEFAULT_CONFIG["max_placement_attempts"]
+
+
 def test_valid_colors_are_accepted():
     colors = ["#e53935", "#fff", "#11223344", "red", "rebeccapurple", "rgb(1, 2, 3)"]
     for color in colors:
