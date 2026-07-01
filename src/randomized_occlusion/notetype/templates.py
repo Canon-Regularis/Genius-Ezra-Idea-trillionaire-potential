@@ -154,6 +154,20 @@ class TemplateAssembler:
             .ro-extra {{ margin-top: 14px; line-height: normal; font-size: 16px; }}
             .ro-type {{ margin-top: 12px; line-height: normal; }}
             .ro-type input {{ font-size: 16px; padding: 5px 8px; }}
+            .ro-box-rect.ro-correct {{ stroke: #2e7d32; }}
+            .ro-box-rect.ro-wrong {{ stroke: #e53935; }}
+            .ro-cycler {{ margin-top: 12px; line-height: normal; font-size: 15px; }}
+            .ro-cycler-row {{
+              display: flex; gap: 8px; align-items: center;
+              justify-content: center; flex-wrap: wrap;
+            }}
+            .ro-cycler input {{ font-size: 16px; padding: 6px 8px; min-width: 180px; }}
+            .ro-cycler button {{ font-size: 15px; padding: 6px 12px; cursor: pointer; }}
+            .ro-progress {{ font-weight: 700; }}
+            .ro-feedback {{ margin-top: 6px; min-height: 1.2em; font-weight: 600; }}
+            .ro-feedback.correct {{ color: #2e7d32; }}
+            .ro-feedback.wrong {{ color: #e53935; }}
+            .tappable {{ cursor: pointer; }}
             """
         ).format(variables=variables)
 

@@ -35,6 +35,7 @@ class NoteRequest:
     direction: str = "forward"
     interaction: str = "reveal"
     context_labels: bool = False
+    mode: str = "multi"
     header: str = ""
     back_extra: str = ""
 
@@ -68,6 +69,7 @@ def add_randomized_occlusion_note(
             direction=request.direction,
             interaction=request.interaction,
             context_labels=request.context_labels,
+            mode=request.mode,
             header=request.header,
             back_extra=request.back_extra,
         )

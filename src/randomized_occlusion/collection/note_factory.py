@@ -38,20 +38,24 @@ class NoteFactory:
         direction: str = "forward",
         interaction: str = "reveal",
         context_labels: bool = False,
+        mode: str = "multi",
         header: str = "",
         back_extra: str = "",
     ) -> NoteContent:
         spec = self._spec
+        # Single mode drives typing itself (a JS-graded cycler), so the native
+        # {{type:cloze}} box is never used for it.
+        native_type = interaction == "type" and mode != "single"
         fields = {
             spec.image_field: image_field_html(image_filename),
             spec.structures_field: structures.to_payload_base64(
-                direction, context_labels
+                direction, context_labels, mode
             ),
-            spec.cloze_field: structures.cloze_field(direction),
+            spec.cloze_field: structures.cloze_field(direction, mode),
             spec.header_field: header,
             spec.back_extra_field: back_extra,
             # A non-empty flag makes {{#TypeAnswer}} render the type-in box.
-            spec.type_flag_field: "1" if interaction == "type" else "",
+            spec.type_flag_field: "1" if native_type else "",
         }
         return NoteContent(
             notetype_name=spec.name,

@@ -15,6 +15,7 @@ refreshed automatically the next time a profile is opened.
 | `show_context_labels` | Reveal the **other** structures' labels at shuffled positions as context (like "hide one, guess one"). Overrides `show_decoy_dots` when on. |
 | `interaction` | `"reveal"` = flip the card to see the label; `"type"` = type the structure's name and let Anki grade it (stronger active recall). |
 | `direction` | `"forward"` = name the arrowed structure; `"reverse"` = given the name, locate the structure; `"both"` = one of each per structure. Applies to newly created cards. |
+| `card_mode` | `"multi"` = one card per structure (default); `"single"` = one card that cycles through every structure (type each answer), re-randomised each review. Applies to newly created cards. |
 | `accent_color` | Colour of the arrow, prompt-box border, and target dot. |
 | `box_fill` | Background colour of the prompt box. |
 | `box_text_color` | Text colour inside the prompt box. |

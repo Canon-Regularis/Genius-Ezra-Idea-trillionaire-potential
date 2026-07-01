@@ -58,6 +58,22 @@ def test_payload_base64_carries_direction_and_structures():
     assert payload["structures"][0]["x"] == 0.1
 
 
+def test_single_mode_emits_exactly_one_cloze():
+    s = StructureSet.from_unordered([_s(1, "a"), _s(1, "b"), _s(1, "c")])
+    assert s.cloze_field(mode="single") == "{{c1::.}}"
+    # ...even under "both", single mode collapses to one card.
+    assert s.cloze_field(direction="both", mode="single") == "{{c1::.}}"
+
+
+def test_payload_base64_carries_mode():
+    import base64
+    import json
+
+    s = StructureSet.from_unordered([_s(1, "a")])
+    payload = json.loads(base64.b64decode(s.to_payload_base64(mode="single")).decode("utf-8"))
+    assert payload["mode"] == "single"
+
+
 def test_base64_roundtrip_preserves_unicode_labels():
     original = StructureSet.from_unordered(
         [_s(1, "Aorta"), _s(2, "Schlüsselbein"), _s(3, "上腕骨")]

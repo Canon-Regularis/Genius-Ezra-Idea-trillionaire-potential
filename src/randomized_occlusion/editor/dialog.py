@@ -35,6 +35,11 @@ _DIRECTION_LABELS = (
     "Reverse — locate the structure",
     "Both",
 )
+_CARD_MODES = ("multi", "single")
+_CARD_MODE_LABELS = (
+    "Multi — one card per label",
+    "Single — cycle all on one card (type each)",
+)
 from aqt.utils import showWarning, tooltip
 from aqt.webview import AnkiWebView
 
@@ -97,6 +102,16 @@ class MarkerDialog(QDialog):
         form.addRow("Back extra:", self._extra_edit)
 
         settings = self._config.load()
+
+        self._mode_combo = QComboBox()
+        self._mode_combo.addItems(_CARD_MODE_LABELS)
+        try:
+            self._mode_combo.setCurrentIndex(
+                _CARD_MODES.index(settings.get("card_mode", "multi"))
+            )
+        except ValueError:
+            self._mode_combo.setCurrentIndex(0)
+        form.addRow("Mode:", self._mode_combo)
 
         self._direction_combo = QComboBox()
         self._direction_combo.addItems(_DIRECTION_LABELS)
@@ -231,6 +246,7 @@ class MarkerDialog(QDialog):
             direction=_DIRECTIONS[self._direction_combo.currentIndex()],
             interaction="type" if self._type_check.isChecked() else "reveal",
             context_labels=self._context_check.isChecked(),
+            mode=_CARD_MODES[self._mode_combo.currentIndex()],
             header=self._header_edit.text().strip(),
             back_extra=self._extra_edit.toPlainText().strip(),
         )

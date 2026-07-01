@@ -124,16 +124,17 @@
       }
     }
     if (Array.isArray(parsed)) {
-      return { direction: "forward", contextLabels: undefined, structures: parsed };
+      return { mode: "multi", direction: "forward", contextLabels: undefined, structures: parsed };
     }
     if (parsed && Array.isArray(parsed.structures)) {
       return {
+        mode: parsed.mode === "single" ? "single" : "multi",
         direction: parsed.direction || "forward",
         contextLabels: parsed.contextLabels,
         structures: parsed.structures,
       };
     }
-    return { direction: "forward", contextLabels: undefined, structures: [] };
+    return { mode: "multi", direction: "forward", contextLabels: undefined, structures: [] };
   }
 
   /**
@@ -280,9 +281,10 @@
    * Placement is decided by the caller (so front and back agree); this only
    * measures the text, sizes the box symmetrically around the centre, and draws.
    */
-  function drawBox(svg, center, target, text, cfg, showArrow) {
+  function drawBox(svg, center, target, text, cfg, showArrow, extraClass) {
     var group = svgEl("g", { class: "ro-box" });
-    var rect = svgEl("rect", { class: "ro-box-rect", rx: "6", ry: "6" });
+    var rectClass = extraClass ? "ro-box-rect " + extraClass : "ro-box-rect";
+    var rect = svgEl("rect", { class: rectClass, rx: "6", ry: "6" });
     var label = svgEl("text", {
       class: "ro-box-text",
       "text-anchor": "middle",
@@ -383,6 +385,243 @@
     return centers;
   }
 
+  // ---- single-card cycling mode --------------------------------------------
+
+  /** Size the overlay to the image and clear it. Returns the stage or null. */
+  function fitSvg(svg, img) {
+    var rect = img.getBoundingClientRect();
+    var w = rect.width;
+    var h = rect.height;
+    if (!w || !h) return null;
+    svg.setAttribute("width", w);
+    svg.setAttribute("height", h);
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    ensureArrowMarker(svg);
+    return { w: w, h: h };
+  }
+
+  /** Seeded Fisher-Yates shuffle of [0..n-1]. */
+  function shuffleIndices(n, rng) {
+    var arr = [];
+    for (var i = 0; i < n; i++) arr.push(i);
+    for (var j = n - 1; j > 0; j--) {
+      var k = Math.floor(rng() * (j + 1));
+      var tmp = arr[j];
+      arr[j] = arr[k];
+      arr[k] = tmp;
+    }
+    return arr;
+  }
+
+  function normalizeAnswer(text) {
+    return (text || "").trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  /**
+   * Cycle order + box centres for single mode, deterministic from the seed so
+   * the front interaction and the back answer key produce identical geometry.
+   */
+  function computeSingleLayout(seed, stage, structures, cfg) {
+    var rng = makeRng(seed);
+    var order = shuffleIndices(structures.length, rng);
+    var targets = [];
+    for (var i = 0; i < structures.length; i++) {
+      targets.push({
+        x: structures[i].x * stage.w,
+        y: structures[i].y * stage.h,
+        label: structures[i].label,
+      });
+    }
+    var centers = placeCenters(rng, stage, targets, cfg);
+    return { order: order, targets: targets, centers: centers };
+  }
+
+  /** Create (once) the DOM control bar under #ro-root. */
+  function ensureCyclerBar() {
+    var existing = document.getElementById("ro-cycler");
+    if (existing) return existing;
+    var root = document.getElementById("ro-root");
+    if (!root) return null;
+    var bar = document.createElement("div");
+    bar.id = "ro-cycler";
+    bar.className = "ro-cycler";
+    bar.innerHTML =
+      '<div class="ro-cycler-row">' +
+      '<span class="ro-progress" id="ro-progress"></span>' +
+      '<input id="ro-input" class="tappable" type="text" autocomplete="off" ' +
+      'autocapitalize="off" autocorrect="off" spellcheck="false" ' +
+      'placeholder="Type the label…">' +
+      '<button id="ro-btn" class="tappable" type="button" tabindex="-1">Check</button>' +
+      "</div>" +
+      '<div class="ro-feedback" id="ro-feedback"></div>';
+    root.appendChild(bar);
+    return bar;
+  }
+
+  /** State machine driving the single-card type-and-cycle interaction. */
+  function makeCycler(structures, seed, cfg, bar) {
+    var n = structures.length;
+    // The cycle order is stage-independent (depends only on the seed), so it is
+    // stable across every repaint / resize; centres are recomputed per paint.
+    var order = shuffleIndices(n, makeRng(seed));
+    var state = { idx: 0, revealed: false, results: [] };
+    var input = bar.querySelector("#ro-input");
+    var button = bar.querySelector("#ro-btn");
+    var progress = bar.querySelector("#ro-progress");
+    var feedback = bar.querySelector("#ro-feedback");
+
+    function currentStructure() {
+      return structures[order[state.idx]];
+    }
+
+    function updateBar() {
+      var done = state.idx >= n;
+      if (progress) {
+        progress.textContent = done
+          ? n + " / " + n + " ✓"
+          : state.idx + 1 + " / " + n;
+      }
+      if (input) input.style.display = done ? "none" : "";
+      if (button) {
+        button.textContent = done
+          ? "Done — press Show Answer"
+          : state.revealed
+            ? "Next"
+            : "Check";
+      }
+    }
+
+    function paint() {
+      var svg = document.getElementById("ro-overlay");
+      var img = getImage();
+      if (!svg || !img) return;
+      var stage = fitSvg(svg, img);
+      if (!stage) return;
+      var layout = computeSingleLayout(seed, stage, structures, cfg);
+
+      for (var d = 0; d < layout.targets.length; d++) drawDot(svg, layout.targets[d]);
+
+      // Already-answered structures stay revealed (accumulating answer key).
+      for (var p = 0; p < state.idx && p < n; p++) {
+        var ai = layout.order[p];
+        var av = state.results[p] === "correct" ? "ro-correct" : "ro-wrong";
+        drawBox(svg, layout.centers[ai], layout.targets[ai], layout.targets[ai].label, cfg, true, av);
+      }
+      // Current structure: "?" until revealed, then its label.
+      if (state.idx < n) {
+        var ci = layout.order[state.idx];
+        if (state.revealed) {
+          var cv = state.results[state.idx] === "correct" ? "ro-correct" : "ro-wrong";
+          drawBox(svg, layout.centers[ci], layout.targets[ci], layout.targets[ci].label, cfg, true, cv);
+        } else {
+          drawBox(svg, layout.centers[ci], layout.targets[ci], cfg.promptText, cfg, true);
+        }
+      }
+      updateBar();
+    }
+
+    function focusInput() {
+      if (input && state.idx < n && !state.revealed) {
+        try {
+          input.focus();
+        } catch (e) {
+          /* focus is best-effort */
+        }
+      }
+    }
+
+    function check() {
+      if (state.idx >= n || state.revealed) return;
+      var correct =
+        normalizeAnswer(input ? input.value : "") ===
+        normalizeAnswer(currentStructure().label);
+      state.results[state.idx] = correct ? "correct" : "wrong";
+      state.revealed = true;
+      if (feedback) {
+        feedback.textContent = correct
+          ? "✓ Correct"
+          : "✗ Answer: " + currentStructure().label;
+        feedback.className = "ro-feedback " + (correct ? "correct" : "wrong");
+      }
+      paint();
+    }
+
+    function next() {
+      if (!state.revealed || state.idx >= n) return;
+      state.idx++;
+      state.revealed = false;
+      if (input) input.value = "";
+      if (feedback) {
+        feedback.textContent = "";
+        feedback.className = "ro-feedback";
+      }
+      paint();
+      focusInput();
+    }
+
+    function onButton() {
+      if (state.idx >= n) return;
+      if (state.revealed) next();
+      else check();
+    }
+
+    if (button) {
+      button.addEventListener("click", onButton);
+      button.addEventListener(
+        "touchend",
+        function (e) {
+          e.preventDefault();
+          onButton();
+        },
+        { passive: false }
+      );
+    }
+    if (input) {
+      input.addEventListener("keydown", function (e) {
+        // Keep keystrokes from reaching Anki's shortcut handlers; typed spaces
+        // are consumed by the focused input so they won't flip the card. Enter
+        // checks the answer rather than flipping (best effort).
+        e.stopPropagation();
+        if (e.key === "Enter") {
+          e.preventDefault();
+          check();
+        }
+      });
+    }
+
+    return { paint: paint, focusInput: focusInput };
+  }
+
+  /** Single-card mode: interactive cycler on the front, answer key on the back. */
+  function renderSingle(structures, seed, back, cfg) {
+    var svg = document.getElementById("ro-overlay");
+    var img = getImage();
+    if (!svg || !img) return;
+
+    if (back) {
+      var stage = fitSvg(svg, img);
+      if (!stage) return;
+      var layout = computeSingleLayout(seed, stage, structures, cfg);
+      for (var d = 0; d < layout.targets.length; d++) drawDot(svg, layout.targets[d]);
+      for (var b = 0; b < layout.targets.length; b++) {
+        drawBox(svg, layout.centers[b], layout.targets[b], layout.targets[b].label, cfg, true);
+      }
+      var doneBar = document.getElementById("ro-cycler");
+      if (doneBar) doneBar.style.display = "none";
+      return;
+    }
+
+    var bar = ensureCyclerBar();
+    if (!bar) return;
+    bar.style.display = "";
+    if (!bar.__roController) {
+      bar.__roController = makeCycler(structures, seed, cfg, bar);
+    }
+    bar.__roController.paint();
+    bar.__roController.focusInput();
+  }
+
   // ---- orchestration --------------------------------------------------------
 
   function render(mint) {
@@ -424,6 +663,12 @@
       var reused = readSeed();
       seed = reused !== null ? parseInt(reused, 10) >>> 0 : (Math.floor(Math.random() * 0xffffffff)) >>> 0;
       if (reused === null) writeSeed(seed);
+    }
+
+    // Single-card mode drives its own interactive cycler / answer key.
+    if (data.mode === "single") {
+      renderSingle(structures, seed, back, cfg);
+      return;
     }
 
     // Match the SVG's user-space to the image's displayed pixel size.

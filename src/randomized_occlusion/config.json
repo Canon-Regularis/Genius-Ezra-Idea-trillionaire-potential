@@ -8,6 +8,7 @@
   "show_context_labels": false,
   "interaction": "reveal",
   "direction": "forward",
+  "card_mode": "multi",
   "accent_color": "#e53935",
   "box_fill": "#ffffff",
   "box_text_color": "#202124",

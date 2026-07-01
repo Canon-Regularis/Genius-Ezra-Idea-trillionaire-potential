@@ -81,6 +81,23 @@ def test_type_interaction_sets_the_type_answer_flag():
     assert typed.fields["TypeAnswer"] == "1"
 
 
+def test_single_mode_makes_one_card_and_disables_native_type():
+    import base64
+    import json
+
+    content = NoteFactory(DEFAULT_SPEC).build(
+        image_filename="x.png",
+        structures=_structures(),
+        deck_name="d",
+        mode="single",
+        interaction="type",  # single mode uses its own JS typer, not native
+    )
+    assert content.fields["Ordinals"] == "{{c1::.}}"
+    assert content.fields["TypeAnswer"] == ""
+    payload = json.loads(base64.b64decode(content.fields["Structures"]).decode("utf-8"))
+    assert payload["mode"] == "single"
+
+
 def test_context_labels_flag_is_stored_in_the_payload():
     import base64
     import json

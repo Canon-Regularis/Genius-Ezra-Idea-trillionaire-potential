@@ -35,6 +35,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     #   "reverse" = given the name, locate the structure,
     #   "both"    = one of each per structure.
     "direction": "forward",
+    # Card model:
+    #   "multi"  = one card per structure (default),
+    #   "single" = one card that cycles through all structures (type each answer),
+    #              re-randomised every review.
+    "card_mode": "multi",
     # --- appearance (consumed by the note-type CSS) ---
     "accent_color": "#e53935",
     "box_fill": "#ffffff",

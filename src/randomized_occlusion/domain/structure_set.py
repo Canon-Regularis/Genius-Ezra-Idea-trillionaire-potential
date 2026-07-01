@@ -105,7 +105,7 @@ class StructureSet:
 
     # -- anki helpers ----------------------------------------------------------
 
-    def cloze_field(self, direction: str = "forward") -> str:
+    def cloze_field(self, direction: str = "forward", mode: str = "multi") -> str:
         """The contents of the hidden cloze field that generates the cards.
 
         Each ``{{cN::...}}`` makes Anki emit one card; the renderer reads the
@@ -114,9 +114,14 @@ class StructureSet:
         (``{{type:cloze:...}}``) can grade what the learner types, and labels are
         escaped so cloze syntax can't break the field.
 
-        For ``direction == "both"`` each structure gets two consecutive
-        ordinals (a forward and a reverse card); otherwise one each.
+        In ``mode == "single"`` exactly one card is generated (one cloze); the
+        renderer cycles through all structures on that single card, so the cloze
+        answer content is inert. Otherwise, for ``direction == "both"`` each
+        structure gets two consecutive ordinals (a forward and a reverse card);
+        otherwise one each.
         """
+        if mode == "single":
+            return "{{c1::.}}"
         ordered = self.ordered
         if direction == "both":
             parts = []
@@ -130,16 +135,20 @@ class StructureSet:
         )
 
     def to_payload_base64(
-        self, direction: str = "forward", context_labels: bool = False
+        self,
+        direction: str = "forward",
+        context_labels: bool = False,
+        mode: str = "multi",
     ) -> str:
         """Base64 of the per-note payload the renderer reads.
 
-        Carries the per-note render settings (direction, context-labels) with
-        every structure, so a note renders correctly regardless of the current
-        global config (self-describing).
+        Carries the per-note render settings (mode, direction, context-labels)
+        with every structure, so a note renders correctly regardless of the
+        current global config (self-describing).
         """
         payload = {
             "v": 2,
+            "mode": mode,
             "direction": direction,
             "contextLabels": context_labels,
             "structures": [s.to_dict() for s in self.ordered],
