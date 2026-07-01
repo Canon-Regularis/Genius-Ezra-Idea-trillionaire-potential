@@ -27,6 +27,11 @@ class NoteTypeSpec:
     type_flag_field: str
     sort_field: str
     template_name: str
+    #: Fields collapsed by default in Anki's editor. These hold machine data
+    #: (the image tag, the base64 payload, the cloze ordinals, the type flag) the
+    #: user never edits by hand, so collapsing them keeps the Add window clean —
+    #: the visual canvas is the way in. Header/Back Extra stay expanded.
+    collapsed_fields: tuple[str, ...] = ()
 
     @property
     def sort_index(self) -> int:
@@ -56,4 +61,5 @@ DEFAULT_SPEC = NoteTypeSpec(
     type_flag_field="TypeAnswer",
     sort_field="Header",
     template_name="Randomized Occlusion",
+    collapsed_fields=("Image", "Structures", "Ordinals", "TypeAnswer"),
 )

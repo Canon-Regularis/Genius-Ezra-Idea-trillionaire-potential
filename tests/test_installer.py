@@ -18,11 +18,17 @@ class FakeModelGateway:
     def find(self, name):
         return self.store.get(name)
 
-    def create_cloze_notetype(self, *, name, fields, sort_index, template_name, front, back, css):
+    def create_cloze_notetype(
+        self, *, name, fields, sort_index, template_name, front, back, css, collapsed_fields=()
+    ):
+        collapsed = set(collapsed_fields)
         self.store[name] = {
             "name": name,
             "type": 1,
-            "flds": [{"name": f} for f in fields],
+            "flds": [
+                {"name": f, "collapsed": True} if f in collapsed else {"name": f}
+                for f in fields
+            ],
             "tmpls": [{"name": template_name, "qfmt": front, "afmt": back}],
             "css": css,
             "sortf": sort_index,
@@ -43,6 +49,18 @@ class FakeModelGateway:
                 notetype["flds"].append({"name": name})
                 changed = True
         return changed
+
+    def collapse_fields(self, notetype, field_names):
+        targets = set(field_names)
+        changed = False
+        for field in notetype["flds"]:
+            if field["name"] in targets and not field.get("collapsed", False):
+                field["collapsed"] = True
+                changed = True
+        return changed
+
+    def save(self, notetype):
+        self.updated.append(notetype["name"])
 
 
 def _installer(gateway):
@@ -99,3 +117,42 @@ def test_adds_missing_fields_to_an_existing_notetype():
 
     assert result is InstallResult.UPDATED
     assert any(f["name"] == "TypeAnswer" for f in notetype["flds"])
+
+
+def test_machine_fields_are_collapsed_on_create():
+    gw = FakeModelGateway()
+    _installer(gw).ensure_installed(_rc())
+    flds = {f["name"]: f for f in gw.store[DEFAULT_SPEC.name]["flds"]}
+    for name in DEFAULT_SPEC.collapsed_fields:
+        assert flds[name].get("collapsed") is True
+    # The user-facing fields stay expanded.
+    assert flds["Header"].get("collapsed", False) is False
+    assert flds["Back Extra"].get("collapsed", False) is False
+
+
+def test_collapse_migrates_an_existing_uncollapsed_notetype():
+    gw = FakeModelGateway()
+    installer = _installer(gw)
+    installer.ensure_installed(_rc())
+    # Simulate an older install whose machine fields were never collapsed.
+    notetype = gw.store[DEFAULT_SPEC.name]
+    for field in notetype["flds"]:
+        field.pop("collapsed", None)
+    gw.updated.clear()
+
+    result = installer.ensure_installed(_rc())
+
+    assert result is InstallResult.UPDATED
+    assert gw.updated == [DEFAULT_SPEC.name]  # persisted via save()
+    flds = {f["name"]: f for f in notetype["flds"]}
+    assert flds["Structures"]["collapsed"] is True
+
+
+def test_collapse_is_idempotent_and_leaves_current_notetype_unchanged():
+    gw = FakeModelGateway()
+    installer = _installer(gw)
+    installer.ensure_installed(_rc())
+    gw.updated.clear()
+    result = installer.ensure_installed(_rc())
+    assert result is InstallResult.UNCHANGED
+    assert gw.updated == []

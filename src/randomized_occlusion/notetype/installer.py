@@ -52,18 +52,29 @@ class NoteTypeInstaller:
                 front=front,
                 back=back,
                 css=css,
+                collapsed_fields=self._spec.collapsed_fields,
             )
             return InstallResult.CREATED
 
-        # Migrate: add any fields introduced by newer versions (mutates in place).
+        # Migrate (all mutate ``existing`` in place):
+        #   * add any fields introduced by newer versions;
+        #   * collapse the machine fields so the Add window stays clean — this is
+        #     idempotent, so an existing install gets it once and then no-ops.
         fields_changed = self._gateway.ensure_fields(existing, self._spec.fields)
+        collapse_changed = self._gateway.collapse_fields(
+            existing, self._spec.collapsed_fields
+        )
         templates_stale = extract_fingerprint(existing.get("css", "")) != fingerprint
 
         if fields_changed or templates_stale:
-            # update_templates persists the whole dict, including added fields.
+            # update_templates persists the whole dict, including the mutations
+            # above (added fields and collapse state).
             self._gateway.update_templates(
                 existing, front=front, back=back, css=css
             )
+            return InstallResult.UPDATED
+        if collapse_changed:
+            self._gateway.save(existing)
             return InstallResult.UPDATED
 
         return InstallResult.UNCHANGED

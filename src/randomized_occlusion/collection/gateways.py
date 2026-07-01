@@ -42,6 +42,7 @@ class ModelGateway(Protocol):
         front: str,
         back: str,
         css: str,
+        collapsed_fields: tuple[str, ...] = (),
     ) -> None: ...
 
     def update_templates(
@@ -53,6 +54,17 @@ class ModelGateway(Protocol):
     ) -> bool:
         """Add any missing fields to ``notetype`` in place; return whether it
         changed (the caller persists)."""
+        ...
+
+    def collapse_fields(
+        self, notetype: NotetypeDict, field_names: tuple[str, ...]
+    ) -> bool:
+        """Collapse the named fields in the editor (in place); return whether it
+        changed (the caller persists)."""
+        ...
+
+    def save(self, notetype: NotetypeDict) -> None:
+        """Persist a note-type dict that was mutated in place."""
         ...
 
 
@@ -89,12 +101,17 @@ class AnkiModelGateway:
         front: str,
         back: str,
         css: str,
+        collapsed_fields: tuple[str, ...] = (),
     ) -> None:
         models = self._models
         notetype = models.new(name)
         notetype["type"] = 1  # 1 == cloze (see proto NotetypeKind; no Py const)
+        collapsed = set(collapsed_fields)
         for field_name in fields:
-            models.add_field(notetype, models.new_field(field_name))
+            field = models.new_field(field_name)
+            if field_name in collapsed:
+                field["collapsed"] = True
+            models.add_field(notetype, field)
         template = models.new_template(template_name)
         template["qfmt"] = front
         template["afmt"] = back
@@ -122,6 +139,20 @@ class AnkiModelGateway:
                 self._models.add_field(notetype, self._models.new_field(name))
                 changed = True
         return changed
+
+    def collapse_fields(
+        self, notetype: NotetypeDict, field_names: tuple[str, ...]
+    ) -> bool:
+        targets = set(field_names)
+        changed = False
+        for field in notetype["flds"]:
+            if field["name"] in targets and not field.get("collapsed", False):
+                field["collapsed"] = True
+                changed = True
+        return changed
+
+    def save(self, notetype: NotetypeDict) -> None:
+        self._models.update_dict(notetype)
 
 
 class AnkiMediaGateway:

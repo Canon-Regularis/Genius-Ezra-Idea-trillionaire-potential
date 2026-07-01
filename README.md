@@ -95,6 +95,14 @@ Then just review like any other Anki cards. Each time, the prompt box lands
 somewhere new with an arrow to the structure - so you're always answering *"what
 is this?"*, never *"what usually goes in this corner?"*.
 
+### From Anki's Add window
+
+You can also make cards straight from **Add**: choose the **Randomized Image
+Occlusion** note type and click the **Occlusion** button in the editor toolbar to
+mark the image up on the canvas, then press Anki's **Add**. The internal fields
+(Image, Structures, Ordinals, TypeAnswer) are collapsed out of the way so you
+never have to touch them by hand.
+
 ### Editing a card later
 
 Made a typo, or want to nudge a marker? Open the **Browse** window, right-click
