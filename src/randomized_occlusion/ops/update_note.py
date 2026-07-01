@@ -59,13 +59,15 @@ def update_randomized_occlusion_note(
     """Run the note-editing ``CollectionOp`` in the background."""
 
     def op(col: Any) -> Any:
-        # Keep the note type current before opening the undo entry, for the same
-        # reason as the add path: a schema change would clear the undo queue, so
-        # it must not happen inside the entry. Normally a no-op (bootstrap
-        # installs the note type at profile open).
+        # Everything that can fail on external state — importing the image (the
+        # file may have gone away) and loading the note (it may have been deleted
+        # or synced away) — happens BEFORE the custom undo entry is opened. That
+        # way such a failure can't leave a half-open undo entry that corrupts
+        # Anki's undo queue; only the actual write is wrapped by the entry.
+        #
+        # ensure_installed also runs first: add_dict/update_dict perform a schema
+        # change that clears the undo queue, so it must precede the entry too.
         build_installer(col, spec).ensure_installed(render_config)
-
-        undo_position = col.add_custom_undo_entry(_UNDO_NAME)
         filename = (
             AnkiMediaGateway(col).add_image(request.new_image_path)
             if request.new_image_path
@@ -79,14 +81,14 @@ def update_randomized_occlusion_note(
             header=request.header,
             back_extra=request.back_extra,
         )
-
         note = col.get_note(request.note_id)
         for name, value in content.fields.items():
             note[name] = value
+
+        undo_position = col.add_custom_undo_entry(_UNDO_NAME)
         # Persists the fields and regenerates cards for any cloze ordinals that
         # were added or removed by the edit.
         col.update_note(note)
-
         return col.merge_undo_entries(undo_position)
 
     operation = CollectionOp(parent=parent, op=op)

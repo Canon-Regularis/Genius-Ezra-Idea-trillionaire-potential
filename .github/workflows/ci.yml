@@ -39,6 +39,20 @@ jobs:
       - name: Pytest
         run: pytest -q
 
+  js:
+    name: JavaScript tests (renderer)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run the reviewer JS tests
+        run: node --test tests/js/*.test.js
+
   build:
     name: Build .ankiaddon
     runs-on: ubuntu-latest

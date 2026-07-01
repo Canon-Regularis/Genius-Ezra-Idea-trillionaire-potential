@@ -47,7 +47,9 @@ def _as_float(value: Any, default: float, *, low: float, high: float) -> float:
 def _as_int(value: Any, default: int, *, minimum: int) -> int:
     try:
         number = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        # OverflowError: int(float("inf")) — a hand-edited config can smuggle
+        # a non-finite value in via JSON, and from_mapping must stay total.
         return default
     return max(minimum, number)
 

@@ -195,35 +195,39 @@
    * this too is resolution-independent) to keep typical boxes on-image, and the
    * arrow (centre -> target) is at least `minLen` long. Never returns null.
    */
+  /**
+   * The point inside the [marginX, maxX] x [marginY, maxY] rectangle FARTHEST
+   * from `target` — always a corner. Used as a deterministic fallback so the
+   * arrow is as long as the geometry allows (never near-zero) when random
+   * sampling can't find a long-enough placement (small image / high minArrow).
+   */
+  function farthestInMargin(target, marginX, marginY, maxX, maxY) {
+    var x = Math.abs(marginX - target.x) >= Math.abs(maxX - target.x) ? marginX : maxX;
+    var y = Math.abs(marginY - target.y) >= Math.abs(maxY - target.y) ? marginY : maxY;
+    return { x: x, y: y };
+  }
+
   function placeCenter(rng, stage, target, cfg) {
     var diag = Math.hypot(stage.w, stage.h);
     var minLen = cfg.minArrowFraction * diag;
     var maxLen = Math.max(minLen + 1, MAX_ARROW_FRACTION * diag);
     var marginX = stage.w * MARGIN_X_FRACTION;
     var marginY = stage.h * MARGIN_Y_FRACTION;
+    var maxX = stage.w - marginX;
+    var maxY = stage.h - marginY;
 
-    var best = null;
-    var bestLen = -1;
     for (var i = 0; i < cfg.maxPlacementAttempts; i++) {
       var angle = rng() * Math.PI * 2;
       var length = minLen + rng() * (maxLen - minLen);
-      var cx = clamp(target.x + Math.cos(angle) * length, marginX, stage.w - marginX);
-      var cy = clamp(target.y + Math.sin(angle) * length, marginY, stage.h - marginY);
-      var actualLen = Math.hypot(cx - target.x, cy - target.y);
-      if (actualLen >= minLen * ACCEPT_ARROW_FRACTION) {
+      var cx = clamp(target.x + Math.cos(angle) * length, marginX, maxX);
+      var cy = clamp(target.y + Math.sin(angle) * length, marginY, maxY);
+      if (Math.hypot(cx - target.x, cy - target.y) >= minLen * ACCEPT_ARROW_FRACTION) {
         return { x: cx, y: cy };
       }
-      if (actualLen > bestLen) {
-        bestLen = actualLen;
-        best = { x: cx, y: cy };
-      }
     }
-    return (
-      best || {
-        x: clamp(target.x + minLen, marginX, stage.w - marginX),
-        y: clamp(target.y, marginY, stage.h - marginY),
-      }
-    );
+    // No random candidate cleared the bar (constrained geometry): use the
+    // farthest in-margin point so the arrow stays visible rather than near-zero.
+    return farthestInMargin(target, marginX, marginY, maxX, maxY);
   }
 
   /**
@@ -356,6 +360,8 @@
     var maxLen = Math.max(minLen + 1, MAX_ARROW_FRACTION_MULTI * diag);
     var marginX = stage.w * MARGIN_X_FRACTION;
     var marginY = stage.h * MARGIN_Y_FRACTION;
+    var maxX = stage.w - marginX;
+    var maxY = stage.h - marginY;
     var sep = Math.min(stage.w, stage.h) * MIN_SEPARATION_FRACTION;
 
     var centers = [];
@@ -386,12 +392,20 @@
           best = { x: cx, y: cy };
         }
       }
-      centers.push(
-        best || {
-          x: clamp(target.x + minLen, marginX, stage.w - marginX),
-          y: clamp(target.y, marginY, stage.h - marginY),
+      var chosen = best || farthestInMargin(target, marginX, marginY, maxX, maxY);
+      // Guarantee a visible arrow even if the best-separated spot ended up on
+      // top of its own target (degenerate small-stage case): prefer the farthest
+      // in-margin corner when it yields a longer arrow.
+      if (Math.hypot(chosen.x - target.x, chosen.y - target.y) < minLen * ACCEPT_ARROW_FRACTION) {
+        var corner = farthestInMargin(target, marginX, marginY, maxX, maxY);
+        if (
+          Math.hypot(corner.x - target.x, corner.y - target.y) >
+          Math.hypot(chosen.x - target.x, chosen.y - target.y)
+        ) {
+          chosen = corner;
         }
-      );
+      }
+      centers.push(chosen);
     }
     return centers;
   }
@@ -821,5 +835,19 @@
   }
 
   window.RandomizedOcclusion = { run: run, render: render };
+  // Pure, DOM-free helpers exposed for headless unit tests. Assigning extra
+  // properties is harmless in production and contains no template tokens.
+  window.RandomizedOcclusion._internals = {
+    makeRng: makeRng,
+    hashString: hashString,
+    clamp: clamp,
+    placeCenter: placeCenter,
+    placeCenters: placeCenters,
+    boxBorderToward: boxBorderToward,
+    shuffleIndices: shuffleIndices,
+    normalizeAnswer: normalizeAnswer,
+    computeSingleLayout: computeSingleLayout,
+    decodeBase64Utf8: decodeBase64Utf8,
+  };
   run();
 })();

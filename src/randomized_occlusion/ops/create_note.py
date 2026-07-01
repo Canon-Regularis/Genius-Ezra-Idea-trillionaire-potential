@@ -50,14 +50,16 @@ def add_randomized_occlusion_note(
     """Run the note-creation ``CollectionOp`` in the background."""
 
     def op(col: Any) -> Any:
-        # Ensure the note type exists/updated BEFORE opening the undo entry.
-        # add_dict/update_dict perform a schema change that clears Anki's undo
-        # queue; doing it inside the entry would invalidate the "Add note" undo
-        # step. In normal use this is a no-op — bootstrap installs the note type
-        # at profile open, so nothing here changes the schema.
+        # Everything that can fail on external state — importing the image (the
+        # chosen file may have gone away) — happens BEFORE the custom undo entry
+        # is opened, so a failure can't leave a half-open entry that corrupts
+        # Anki's undo queue. Only the note write is wrapped by the entry.
+        #
+        # ensure_installed also runs first: add_dict/update_dict perform a schema
+        # change that clears the undo queue, so it must precede the entry too. In
+        # normal use it's a no-op (bootstrap installs the note type at profile
+        # open).
         build_installer(col, spec).ensure_installed(render_config)
-
-        undo_position = col.add_custom_undo_entry(_UNDO_NAME)
         filename = AnkiMediaGateway(col).add_image(request.image_path)
         content = NoteFactory(spec).build(
             image_filename=filename,
@@ -67,14 +69,14 @@ def add_randomized_occlusion_note(
             header=request.header,
             back_extra=request.back_extra,
         )
-
         notetype = col.models.by_name(content.notetype_name)
         note = col.new_note(notetype)
         for name, value in content.fields.items():
             note[name] = value
         deck_id = col.decks.id(content.deck_name, create=True)
-        col.add_note(note, deck_id)
 
+        undo_position = col.add_custom_undo_entry(_UNDO_NAME)
+        col.add_note(note, deck_id)
         return col.merge_undo_entries(undo_position)
 
     operation = CollectionOp(parent=parent, op=op)
