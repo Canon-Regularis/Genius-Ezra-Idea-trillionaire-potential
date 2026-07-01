@@ -36,16 +36,22 @@ class NoteFactory:
         structures: StructureSet,
         deck_name: str,
         direction: str = "forward",
+        interaction: str = "reveal",
+        context_labels: bool = False,
         header: str = "",
         back_extra: str = "",
     ) -> NoteContent:
         spec = self._spec
         fields = {
             spec.image_field: image_field_html(image_filename),
-            spec.structures_field: structures.to_payload_base64(direction),
+            spec.structures_field: structures.to_payload_base64(
+                direction, context_labels
+            ),
             spec.cloze_field: structures.cloze_field(direction),
             spec.header_field: header,
             spec.back_extra_field: back_extra,
+            # A non-empty flag makes {{#TypeAnswer}} render the type-in box.
+            spec.type_flag_field: "1" if interaction == "type" else "",
         }
         return NoteContent(
             notetype_name=spec.name,

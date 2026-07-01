@@ -65,3 +65,31 @@ def test_both_direction_doubles_the_cloze_ordinals():
         content.fields["Ordinals"]
         == "{{c1::Aorta}}{{c2::Aorta}}{{c3::Vena cava}}{{c4::Vena cava}}"
     )
+
+
+def test_type_interaction_sets_the_type_answer_flag():
+    reveal = NoteFactory(DEFAULT_SPEC).build(
+        image_filename="x.png", structures=_structures(), deck_name="d"
+    )
+    typed = NoteFactory(DEFAULT_SPEC).build(
+        image_filename="x.png",
+        structures=_structures(),
+        deck_name="d",
+        interaction="type",
+    )
+    assert reveal.fields["TypeAnswer"] == ""
+    assert typed.fields["TypeAnswer"] == "1"
+
+
+def test_context_labels_flag_is_stored_in_the_payload():
+    import base64
+    import json
+
+    content = NoteFactory(DEFAULT_SPEC).build(
+        image_filename="x.png",
+        structures=_structures(),
+        deck_name="d",
+        context_labels=True,
+    )
+    payload = json.loads(base64.b64decode(content.fields["Structures"]).decode("utf-8"))
+    assert payload["contextLabels"] is True

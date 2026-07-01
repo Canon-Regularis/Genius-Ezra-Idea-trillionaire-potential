@@ -129,15 +129,19 @@ class StructureSet:
             f"{{{{c{s.ordinal}::{_cloze_escape(s.label)}}}}}" for s in ordered
         )
 
-    def to_payload_base64(self, direction: str = "forward") -> str:
+    def to_payload_base64(
+        self, direction: str = "forward", context_labels: bool = False
+    ) -> str:
         """Base64 of the per-note payload the renderer reads.
 
-        Carries the direction alongside every structure, so a note renders
-        correctly regardless of the current global config (self-describing).
+        Carries the per-note render settings (direction, context-labels) with
+        every structure, so a note renders correctly regardless of the current
+        global config (self-describing).
         """
         payload = {
             "v": 2,
             "direction": direction,
+            "contextLabels": context_labels,
             "structures": [s.to_dict() for s in self.ordered],
         }
         return base64.b64encode(

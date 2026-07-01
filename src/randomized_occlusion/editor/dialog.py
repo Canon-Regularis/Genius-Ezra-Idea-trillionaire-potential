@@ -14,6 +14,7 @@ import mimetypes
 from typing import Any
 
 from aqt.qt import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -26,6 +27,13 @@ from aqt.qt import (
     QPushButton,
     QVBoxLayout,
     qconnect,
+)
+
+_DIRECTIONS = ("forward", "reverse", "both")
+_DIRECTION_LABELS = (
+    "Forward — name the structure",
+    "Reverse — locate the structure",
+    "Both",
 )
 from aqt.utils import showWarning, tooltip
 from aqt.webview import AnkiWebView
@@ -87,6 +95,26 @@ class MarkerDialog(QDialog):
         self._extra_edit.setPlaceholderText("Optional extra info shown on the answer side")
         self._extra_edit.setFixedHeight(56)
         form.addRow("Back extra:", self._extra_edit)
+
+        settings = self._config.load()
+
+        self._direction_combo = QComboBox()
+        self._direction_combo.addItems(_DIRECTION_LABELS)
+        try:
+            self._direction_combo.setCurrentIndex(
+                _DIRECTIONS.index(settings.get("direction", "forward"))
+            )
+        except ValueError:
+            self._direction_combo.setCurrentIndex(0)
+        form.addRow("Cards:", self._direction_combo)
+
+        self._type_check = QCheckBox("Type the answer (Anki grades it)")
+        self._type_check.setChecked(settings.get("interaction") == "type")
+        form.addRow("", self._type_check)
+
+        self._context_check = QCheckBox("Show other labels as context")
+        self._context_check.setChecked(bool(settings.get("show_context_labels")))
+        form.addRow("", self._context_check)
 
         self._deck_combo = QComboBox()
         self._populate_decks()
@@ -200,6 +228,9 @@ class MarkerDialog(QDialog):
             image_path=self._image_path,
             structures=structures,
             deck_name=deck_name,
+            direction=_DIRECTIONS[self._direction_combo.currentIndex()],
+            interaction="type" if self._type_check.isChecked() else "reveal",
+            context_labels=self._context_check.isChecked(),
             header=self._header_edit.text().strip(),
             back_extra=self._extra_edit.toPlainText().strip(),
         )

@@ -35,6 +35,15 @@ class FakeModelGateway:
         notetype["css"] = css
         self.updated.append(notetype["name"])
 
+    def ensure_fields(self, notetype, field_names):
+        existing = {f["name"] for f in notetype["flds"]}
+        changed = False
+        for name in field_names:
+            if name not in existing:
+                notetype["flds"].append({"name": name})
+                changed = True
+        return changed
+
 
 def _installer(gateway):
     assembler = TemplateAssembler(DEFAULT_SPEC, "/* render */")
@@ -76,3 +85,17 @@ def test_creates_a_cloze_notetype():
     gw = FakeModelGateway()
     _installer(gw).ensure_installed(_rc())
     assert gw.store[DEFAULT_SPEC.name]["type"] == 1
+
+
+def test_adds_missing_fields_to_an_existing_notetype():
+    gw = FakeModelGateway()
+    installer = _installer(gw)
+    installer.ensure_installed(_rc())
+    # Simulate an older install that predates the TypeAnswer field.
+    notetype = gw.store[DEFAULT_SPEC.name]
+    notetype["flds"] = [f for f in notetype["flds"] if f["name"] != "TypeAnswer"]
+
+    result = installer.ensure_installed(_rc())
+
+    assert result is InstallResult.UPDATED
+    assert any(f["name"] == "TypeAnswer" for f in notetype["flds"])

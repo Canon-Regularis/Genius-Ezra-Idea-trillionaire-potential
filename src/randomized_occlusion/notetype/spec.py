@@ -22,6 +22,7 @@ class NoteTypeSpec:
     structures_field: str
     header_field: str
     back_extra_field: str
+    type_flag_field: str
     sort_field: str
     template_name: str
 
@@ -44,14 +45,17 @@ class NoteTypeSpec:
 #:                       drives one-card-per-structure generation.
 #:   * ``Header``      — optional title shown above the image.
 #:   * ``Back Extra``  — optional notes revealed on the answer side.
+#:   * ``TypeAnswer``  — per-note flag ("1" or empty); when set the card shows a
+#:                       native type-in box (``{{type:cloze:...}}``).
 DEFAULT_SPEC = NoteTypeSpec(
     name="Randomized Image Occlusion",
-    fields=("Image", "Structures", "Ordinals", "Header", "Back Extra"),
+    fields=("Image", "Structures", "Ordinals", "Header", "Back Extra", "TypeAnswer"),
     cloze_field="Ordinals",
     image_field="Image",
     structures_field="Structures",
     header_field="Header",
     back_extra_field="Back Extra",
+    type_flag_field="TypeAnswer",
     sort_field="Header",
     template_name="Randomized Occlusion",
 )

@@ -57,14 +57,20 @@ class TemplateAssembler:
 
     def front(self, render_config: RenderConfig) -> str:
         s = self._spec
-        # In "type" mode add a type-in box that grades the typed answer against
-        # the active cloze (the label). Plain string (not f-string) so the "{{"
-        # stay literal; inserted as a .format value so they aren't re-parsed.
-        type_block = ""
-        if render_config.interaction == "type":
-            type_block = (
-                '<div class="ro-type">{{type:cloze:' + s.cloze_field + "}}</div>\n  "
-            )
+        # A type-in box that grades the typed answer against the active cloze
+        # (the label), gated by the per-note TypeAnswer field so only "type"
+        # notes become Anki type-answer cards. Plain string (not f-string) so
+        # the "{{" stay literal; inserted as a .format value so they aren't
+        # re-parsed.
+        type_block = (
+            "{{#"
+            + s.type_flag_field
+            + '}}<div class="ro-type">{{type:cloze:'
+            + s.cloze_field
+            + "}}</div>{{/"
+            + s.type_flag_field
+            + "}}\n  "
+        )
         return dedent(
             """\
             <div id="ro-root" class="ro-root">

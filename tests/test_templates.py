@@ -66,6 +66,9 @@ def test_front_only_references_declared_fields_with_real_js():
         "Image",
         "cloze:Ordinals",
         "Structures",
+        "#TypeAnswer",
+        "/TypeAnswer",
+        "type:cloze:Ordinals",
     }
 
 
@@ -80,13 +83,13 @@ def test_back_only_references_declared_fields():
     }
 
 
-def test_type_mode_adds_a_type_in_box():
-    type_rc = RenderConfig.from_mapping({**DEFAULT_CONFIG, "interaction": "type"})
-    assert "{{type:cloze:Ordinals}}" in _assembler().front(type_rc)
-
-
-def test_reveal_mode_has_no_type_in_box():
-    assert "{{type:cloze:Ordinals}}" not in _assembler().front(RC)
+def test_type_in_box_is_gated_by_the_type_answer_field():
+    # Always present in the template but wrapped in {{#TypeAnswer}}, so only
+    # notes whose TypeAnswer field is set become Anki type-answer cards.
+    front = _assembler().front(RC)
+    assert "{{#TypeAnswer}}" in front
+    assert "{{type:cloze:Ordinals}}" in front
+    assert "{{/TypeAnswer}}" in front
 
 
 def test_both_sides_contain_a_literal_cloze_reference():

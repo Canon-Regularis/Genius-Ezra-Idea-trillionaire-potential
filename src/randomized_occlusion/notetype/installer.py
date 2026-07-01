@@ -53,7 +53,12 @@ class NoteTypeInstaller:
             )
             return InstallResult.CREATED
 
-        if extract_fingerprint(existing.get("css", "")) != fingerprint:
+        # Migrate: add any fields introduced by newer versions (mutates in place).
+        fields_changed = self._gateway.ensure_fields(existing, self._spec.fields)
+        templates_stale = extract_fingerprint(existing.get("css", "")) != fingerprint
+
+        if fields_changed or templates_stale:
+            # update_templates persists the whole dict, including added fields.
             self._gateway.update_templates(
                 existing, front=front, back=back, css=css
             )

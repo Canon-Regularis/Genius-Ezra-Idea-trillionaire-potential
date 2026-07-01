@@ -124,15 +124,16 @@
       }
     }
     if (Array.isArray(parsed)) {
-      return { direction: "forward", structures: parsed };
+      return { direction: "forward", contextLabels: undefined, structures: parsed };
     }
     if (parsed && Array.isArray(parsed.structures)) {
       return {
         direction: parsed.direction || "forward",
+        contextLabels: parsed.contextLabels,
         structures: parsed.structures,
       };
     }
-    return { direction: "forward", structures: [] };
+    return { direction: "forward", contextLabels: undefined, structures: [] };
   }
 
   /**
@@ -467,7 +468,14 @@
     var activeText = !back && !isReverse ? cfg.promptText : active.label;
     var activeArrow = back || !isReverse;
 
-    if (cfg.showContextLabels) {
+    // Per-note context-labels setting, falling back to the global config for
+    // older notes that predate it.
+    var contextLabels = data.contextLabels;
+    if (contextLabels === undefined || contextLabels === null) {
+      contextLabels = cfg.showContextLabels;
+    }
+
+    if (contextLabels) {
       var centers = placeCenters(rng, stage, targets, cfg);
       for (var d = 0; d < targets.length; d++) drawDot(svg, targets[d]);
       for (var b = 0; b < targets.length; b++) {

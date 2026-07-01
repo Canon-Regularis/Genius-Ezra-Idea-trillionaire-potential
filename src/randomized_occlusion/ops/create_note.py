@@ -32,6 +32,9 @@ class NoteRequest:
     image_path: str
     structures: StructureSet
     deck_name: str
+    direction: str = "forward"
+    interaction: str = "reveal"
+    context_labels: bool = False
     header: str = ""
     back_extra: str = ""
 
@@ -62,7 +65,9 @@ def add_randomized_occlusion_note(
             image_filename=filename,
             structures=request.structures,
             deck_name=request.deck_name,
-            direction=render_config.direction,
+            direction=request.direction,
+            interaction=request.interaction,
+            context_labels=request.context_labels,
             header=request.header,
             back_extra=request.back_extra,
         )

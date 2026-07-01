@@ -41,6 +41,13 @@ class ModelGateway(Protocol):
         self, notetype: NotetypeDict, *, front: str, back: str, css: str
     ) -> None: ...
 
+    def ensure_fields(
+        self, notetype: NotetypeDict, field_names: tuple[str, ...]
+    ) -> bool:
+        """Add any missing fields to ``notetype`` in place; return whether it
+        changed (the caller persists)."""
+        ...
+
 
 @runtime_checkable
 class MediaGateway(Protocol):
@@ -97,6 +104,17 @@ class AnkiModelGateway:
         template["afmt"] = back
         notetype["css"] = css
         self._models.update_dict(notetype)
+
+    def ensure_fields(
+        self, notetype: NotetypeDict, field_names: tuple[str, ...]
+    ) -> bool:
+        existing = {field["name"] for field in notetype["flds"]}
+        changed = False
+        for name in field_names:
+            if name not in existing:
+                self._models.add_field(notetype, self._models.new_field(name))
+                changed = True
+        return changed
 
 
 class AnkiMediaGateway:
