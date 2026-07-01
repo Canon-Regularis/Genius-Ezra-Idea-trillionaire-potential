@@ -83,7 +83,9 @@
   function readConfig() {
     // Config is embedded as base64 JSON (like the structures) so user-editable
     // values (prompt_text, colours) can never break out of the <script> element
-    // or be mistaken for an Anki `{{...}}` template directive.
+    // or be mistaken for an Anki template field directive.
+    // NOTE: this whole file is inlined into the card template, so it must never
+    // contain a double-brace field token — Anki would try to resolve it.
     var el = document.getElementById("ro-config");
     var raw = el ? (el.textContent || "").trim() : "";
     var cfg = {};

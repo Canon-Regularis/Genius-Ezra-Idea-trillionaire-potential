@@ -11,8 +11,11 @@ from randomized_occlusion.notetype.templates import (
     TemplateAssembler,
     extract_fingerprint,
 )
+from randomized_occlusion.resources import read_web
 
 RC = RenderConfig.from_mapping(DEFAULT_CONFIG)
+
+_FIELD_TOKEN_RE = re.compile(r"\{\{(.*?)\}\}", re.DOTALL)
 
 
 def _assembler(render_js="/* render */"):
@@ -43,6 +46,32 @@ def test_front_embeds_config_as_decodable_base64():
 def test_front_embeds_render_js():
     front = _assembler("window.__SENTINEL__ = 1;").front(RC)
     assert "window.__SENTINEL__ = 1;" in front
+
+
+def test_bundled_render_js_has_no_double_brace_tokens():
+    # render.js is inlined into the card template; a literal {{ or }} (even in a
+    # comment) would be parsed by Anki as a field directive and break the card.
+    js = read_web("review/render.js")
+    assert "{{" not in js and "}}" not in js
+
+
+def test_front_only_references_declared_fields_with_real_js():
+    # Uses the REAL render.js (not the stub) so a stray token in it is caught.
+    asm = TemplateAssembler(DEFAULT_SPEC, read_web("review/render.js"))
+    tokens = set(_FIELD_TOKEN_RE.findall(asm.front(RC)))
+    assert tokens == {
+        "#Header",
+        "Header",
+        "/Header",
+        "Image",
+        "cloze:Ordinals",
+        "Structures",
+    }
+
+
+def test_back_only_references_declared_fields():
+    tokens = set(_FIELD_TOKEN_RE.findall(_assembler().back()))
+    assert tokens == {"FrontSide", "#Back Extra", "Back Extra", "/Back Extra"}
 
 
 def test_back_contains_frontside_and_answer_sentinel():
